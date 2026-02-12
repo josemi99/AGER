@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGER - Gestión de Trenes RFIG</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f0f2f5; color: #333; }
+        h1, h2 { color: #2c3e50; text-align: center; }
+        .container { max-width: 900px; margin: auto; }
+        
+        form, .search-box { 
+            background: #ffffff; padding: 25px; border-radius: 10px; 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); margin-bottom: 30px; 
+        }
+        
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        
+        button { 
+            padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; 
+            font-weight: bold; transition: 0.3s; margin-right: 5px;
+        }
+        .btn-add { background-color: #27ae60; color: white; width: 100%; font-size: 16px; }
+        .btn-delete { background-color: #e74c3c; color: white; padding: 5px 10px; font-size: 12px; }
+
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background-color: #2c3e50; color: white; }
+        tr:hover { background-color: #f9f9f9; }
+
+        .message { padding: 10px; margin-bottom: 20px; border-radius: 5px; text-align: center; display: none; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>AGER: Sistema Ferroviario</h1>
+    
+    <div id="message" class="message"></div>
+
+    <form id="trenForm">
+        <div class="form-group">
+            <label>Número de Tren:</label>
+            <input type="text" id="numero" required placeholder="Ej: TRN-550">
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <div class="form-group" style="flex: 1;">
+                <label>Origen:</label>
+                <input type="text" id="origen" required>
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label>Destino:</label>
+                <input type="text" id="destino" required>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Empresa Operadora:</label>
+            <input type="text" id="empresa" required>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <div class="form-group" style="flex: 1;">
+                <label>Fecha:</label>
+                <input type="date" id="fecha" required>
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label>Estatus:</label>
+                <select id="estatus">
+                    <option value="En Hora">En Hora</option>
+                    <option value="Retrasado">Retrasado</option>
+                    <option value="Cancelado">Cancelado</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Situación / Ubicación:</label>
+            <input type="text" id="situacion" required>
+        </div>
+        <button type="submit" class="btn-add">REGISTRAR EN BASE DE DATOS</button>
+    </form>
+
+    <div class="search-box">
+        <label>🔍 Buscador en tiempo real:</label>
+        <input type="text" id="buscador" placeholder="Filtrar por número, origen o destino...">
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Núm</th>
+                <th>Trayecto</th>
+                <th>Operadora</th>
+                <th>Fecha</th>
+                <th>Estatus</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="tablaCuerpo"></tbody>
+    </table>
+</div>
+
+<script>
+    const API_URL = 'api.php';
+
+    // Configuración inicial al cargar la página
+    document.addEventListener('DOMContentLoaded', () => {
+        establecerFechaActual();
+        fetchTrenes();
+    });
+
+    // --- FUNCIÓN PARA LA FECHA POR DEFECTO ---
+    function establecerFechaActual() {
+        const hoy = new Date();
+        const yyyy = hoy.getFullYear();
+        let mm = hoy.getMonth() + 1; // Enero es 0
+        let dd = hoy.getDate();
+
+        if (dd < 10) dd = '0' + dd;
+        if (mm < 10) mm = '0' + mm;
+
+        const fechaFormateada = `${yyyy}-${mm}-${dd}`;
+        document.getElementById('fecha').value = fechaFormateada;
+    }
+
+    // Buscador interactivo
+    document.getElementById('buscador').addEventListener('input', (e) => {
+        fetchTrenes(e.target.value);
+    });
+
+    async function fetchTrenes(query = '') {
+        try {
+            const url = query ? `${API_URL}?q=${encodeURIComponent(query)}` : API_URL;
+            const response = await fetch(url);
+            const trenes = await response.json();
+            renderTabla(trenes);
+        } catch (error) {
+            showMsg('Error al conectar con la API', 'error');
+        }
+    }
+
+    function renderTabla(trenes) {
+        const cuerpo = document.getElementById('tablaCuerpo');
+        cuerpo.innerHTML = '';
+        trenes.forEach(t => {
+            cuerpo.innerHTML += `
+                <tr>
+                    <td><strong>${t.numero}</strong></td>
+                    <td>${t.origen} → ${t.destino}</td>
+                    <td>${t.empresa}</td>
+                    <td>${t.fecha}</td>
+                    <td>${t.estatus}</td>
+                    <td><button class="btn-delete" onclick="eliminarTren(${t.id})">Borrar</button></td>
+                </tr>
+            `;
+        });
+    }
+
+    // Guardar nuevo tren
+    document.getElementById('trenForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            numero: document.getElementById('numero').value,
+            origen: document.getElementById('origen').value,
+            destino: document.getElementById('destino').value,
+            empresa: document.getElementById('empresa').value,
+            fecha: document.getElementById('fecha').value,
+            estatus: document.getElementById('estatus').value,
+            situacion: document.getElementById('situacion').value
+        };
+
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (res.ok) {
+                showMsg('Tren registrado con éxito', 'success');
+                e.target.reset();
+                establecerFechaActual(); // Volver a poner la fecha tras limpiar el form
+                fetchTrenes();
+            }
+        } catch (error) {
+            showMsg('Error al guardar el registro', 'error');
+        }
+    });
+
+    async function eliminarTren(id) {
+        if (!confirm('¿Seguro que deseas eliminar este registro?')) return;
+        try {
+            // El API debe estar preparado para recibir el ID vía GET o DELETE
+            await fetch(`${API_URL}?delete_id=${id}`, { method: 'GET' }); 
+            fetchTrenes();
+        } catch (error) {
+            showMsg('Error al eliminar', 'error');
+        }
+    }
+
+    function showMsg(txt, type) {
+        const el = document.getElementById('message');
+        el.textContent = txt;
+        el.className = `message ${type}`;
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 3000);
+    }
+</script>
+
+</body>
+</html>
